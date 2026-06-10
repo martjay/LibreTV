@@ -79,10 +79,9 @@ export async function onRequest(context) {
         const timestamp = url.searchParams.get('t');
         
         // 获取服务器端密码
-        const serverPassword = env.PASSWORD;
+        const serverPassword = env.SITE_PASSWORD || env.PASSWORD;
         if (!serverPassword) {
-            console.error('服务器未设置 PASSWORD 环境变量，代理访问被拒绝');
-            return false;
+            return true;
         }
         
         // 使用 SHA-256 哈希算法（与其他平台保持一致）

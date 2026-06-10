@@ -1,32 +1,68 @@
-import { sha256 } from '../js/sha256.js';
+import { sha256 } from "../js/sha256.js";
+import {
+  getSitePassword,
+  getVerifyPath,
+  handleTurnstileVerify,
+  hasValidTurnstileSession,
+  isTurnstileEnabled,
+  turnstileChallengePage,
+} from "./_auth.js";
 
 export async function onRequest(context) {
   const { request, env, next } = context;
-  const response = await next();
-  const contentType = response.headers.get("content-type") || "";
-  
-  if (contentType.includes("text/html")) {
-    let html = await response.text();
-    
-    // 处理普通密码
-    const password = env.PASSWORD || "";
-    let passwordHash = "";
-    if (password) {
-      passwordHash = await sha256(password);
-    }
-    html = html.replace('window.__ENV__.PASSWORD = "{{PASSWORD}}";', 
-      `window.__ENV__.PASSWORD = "${passwordHash}";`);
+  const url = new URL(request.url);
 
-    // 移除 ADMINPASSWORD 占位符
-    html = html.replace('window.__ENV__.ADMINPASSWORD = "{{ADMINPASSWORD}}";',
-      'window.__ENV__.ADMINPASSWORD = "";');
-    
-    return new Response(html, {
-      headers: response.headers,
-      status: response.status,
-      statusText: response.statusText,
+  if (url.pathname === getVerifyPath()) {
+    return handleTurnstileVerify(request, env);
+  }
+
+  if (isTurnstileEnabled(env) && !(await hasValidTurnstileSession(request, env))) {
+    if (request.method === "OPTIONS") {
+      return next();
+    }
+
+    const accept = request.headers.get("Accept") || "";
+    const wantsHtml = accept.includes("text/html") || url.pathname.endsWith(".html") || url.pathname === "/";
+
+    if (wantsHtml) {
+      return new Response(turnstileChallengePage(env, url.pathname + url.search), {
+        status: 403,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "请先完成人机验证" }), {
+      status: 403,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
     });
   }
-  
-  return response;
+
+  const response = await next();
+  const contentType = response.headers.get("content-type") || "";
+
+  if (!contentType.includes("text/html")) {
+    return response;
+  }
+
+  let html = await response.text();
+  const password = getSitePassword(env);
+  const passwordHash = password ? await sha256(password) : "";
+
+  html = html.replace(/\{\{PASSWORD\}\}/g, passwordHash);
+  html = html.replace(/\{\{ADMINPASSWORD\}\}/g, "");
+
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+
+  return new Response(html, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
