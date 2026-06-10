@@ -30,7 +30,8 @@ async function searchByAPIAndKeyWord(apiId, query) {
         
         const response = await fetch(proxiedUrl, {
             headers: API_CONFIG.search.headers,
-            signal: controller.signal
+            signal: controller.signal,
+            credentials: 'same-origin',
         });
         
         clearTimeout(timeoutId);
@@ -81,7 +82,8 @@ async function searchByAPIAndKeyWord(apiId, query) {
                         
                         const pageResponse = await fetch(proxiedPageUrl, {
                             headers: API_CONFIG.search.headers,
-                            signal: pageController.signal
+                            signal: pageController.signal,
+                            credentials: 'same-origin',
                         });
                         
                         clearTimeout(pageTimeoutId);

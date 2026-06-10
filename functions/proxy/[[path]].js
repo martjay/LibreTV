@@ -1,4 +1,5 @@
 // functions/proxy/[[path]].js
+import { hasValidTurnstileSession, isTurnstileEnabled } from "../_auth.js";
 
 // --- 配置 (现在从 Cloudflare 环境变量读取) ---
 // 在 Cloudflare Pages 设置 -> 函数 -> 环境变量绑定 中设置以下变量:
@@ -83,7 +84,12 @@ export async function onRequest(context) {
         if (!serverPassword) {
             return true;
         }
-        
+
+        // 已通过 Turnstile 人机验证的会话，允许代理请求（无需 URL 鉴权参数）
+        if (isTurnstileEnabled(env) && await hasValidTurnstileSession(request, env)) {
+            return true;
+        }
+
         // 使用 SHA-256 哈希算法（与其他平台保持一致）
         // 在 Cloudflare Workers 中使用 crypto.subtle
         try {

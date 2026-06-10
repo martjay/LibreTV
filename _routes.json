@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "include": ["/*"],
+  "include": ["/proxy/*", "/*"],
   "exclude": [
     "/css/*",
     "/js/*",

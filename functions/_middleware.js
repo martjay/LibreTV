@@ -1,10 +1,10 @@
-import { sha256 } from "../js/sha256.js";
 import {
   getSitePassword,
   getVerifyPath,
   handleTurnstileVerify,
   hasValidTurnstileSession,
   isTurnstileEnabled,
+  sha256Hex,
   turnstileChallengePage,
 } from "./_auth.js";
 
@@ -16,13 +16,23 @@ export async function onRequest(context) {
     return handleTurnstileVerify(request, env);
   }
 
-  if (isTurnstileEnabled(env) && !(await hasValidTurnstileSession(request, env))) {
+  // /proxy/* 由代理函数自行鉴权，不在中间件层拦截（避免搜索请求被 403）
+  const isProxyPath = url.pathname.startsWith("/proxy/");
+
+  if (
+    !isProxyPath &&
+    isTurnstileEnabled(env) &&
+    !(await hasValidTurnstileSession(request, env))
+  ) {
     if (request.method === "OPTIONS") {
       return next();
     }
 
     const accept = request.headers.get("Accept") || "";
-    const wantsHtml = accept.includes("text/html") || url.pathname.endsWith(".html") || url.pathname === "/";
+    const wantsHtml =
+      accept.includes("text/html") ||
+      url.pathname.endsWith(".html") ||
+      url.pathname === "/";
 
     if (wantsHtml) {
       return new Response(turnstileChallengePage(env, url.pathname + url.search), {
@@ -52,7 +62,7 @@ export async function onRequest(context) {
 
   let html = await response.text();
   const password = getSitePassword(env);
-  const passwordHash = password ? await sha256(password) : "";
+  const passwordHash = password ? await sha256Hex(password) : "";
 
   html = html.replace(/\{\{PASSWORD\}\}/g, passwordHash);
   html = html.replace(/\{\{ADMINPASSWORD\}\}/g, "");

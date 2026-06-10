@@ -36,7 +36,8 @@ async function handleApiRequest(url) {
                     
                 const response = await fetch(proxiedUrl, {
                     headers: API_CONFIG.search.headers,
-                    signal: controller.signal
+                    signal: controller.signal,
+                    credentials: 'same-origin',
                 });
                 
                 clearTimeout(timeoutId);
@@ -125,7 +126,8 @@ async function handleApiRequest(url) {
                     
                 const response = await fetch(proxiedUrl, {
                     headers: API_CONFIG.detail.headers,
-                    signal: controller.signal
+                    signal: controller.signal,
+                    credentials: 'same-origin',
                 });
                 
                 clearTimeout(timeoutId);
@@ -229,7 +231,8 @@ async function handleCustomApiSpecialDetail(id, customApi) {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             },
-            signal: controller.signal
+            signal: controller.signal,
+            credentials: 'same-origin',
         });
         
         clearTimeout(timeoutId);
@@ -296,7 +299,8 @@ async function handleSpecialSourceDetail(id, sourceCode) {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             },
-            signal: controller.signal
+            signal: controller.signal,
+            credentials: 'same-origin',
         });
         
         clearTimeout(timeoutId);
@@ -382,7 +386,8 @@ async function handleAggregatedSearch(searchQuery) {
                 PROXY_URL + encodeURIComponent(apiUrl);
             
             const fetchPromise = fetch(proxiedUrl, {
-                headers: API_CONFIG.search.headers
+                headers: API_CONFIG.search.headers,
+                credentials: 'same-origin',
             });
             
             const response = await Promise.race([fetchPromise, timeoutPromise]);
@@ -496,7 +501,8 @@ async function handleMultipleCustomSearch(searchQuery, customApiUrls) {
                 PROXY_URL + encodeURIComponent(fullUrl);
             
             const fetchPromise = fetch(proxiedUrl, {
-                headers: API_CONFIG.search.headers
+                headers: API_CONFIG.search.headers,
+                credentials: 'same-origin',
             });
             
             const response = await Promise.race([fetchPromise, timeoutPromise]);
