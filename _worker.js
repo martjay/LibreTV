@@ -1,4 +1,4 @@
-import { onRequest as middlewareOnRequest } from "./worker/_middleware.js";
+import { onRequest as middlewareOnRequest } from "./functions/_middleware.js";
 
 export default {
   async fetch(request, env, ctx) {

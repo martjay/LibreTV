@@ -1,1 +1,11 @@
 _worker.js
+functions/
+worker/
+.git/
+.wrangler/
+.dry-run/
+.pages-build/
+.pages-build2/
+node_modules/
+_routes.json
+_routes.generated.json

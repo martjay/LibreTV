@@ -23,3 +23,8 @@ coverage
 *.sln
 *.sw?
 .env
+.wrangler/
+.dry-run/
+.pages-build/
+.pages-build2/
+_routes.generated.json
