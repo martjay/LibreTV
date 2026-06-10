@@ -7,6 +7,7 @@ import {
   sha256Hex,
   turnstileChallengePage,
 } from "./_auth.js";
+import { onRequest as proxyOnRequest } from "./_proxy.js";
 
 export async function onRequest(context) {
   const { request, env, next } = context;
@@ -16,11 +17,12 @@ export async function onRequest(context) {
     return handleTurnstileVerify(request, env);
   }
 
-  // /proxy/* 由代理函数自行鉴权，不在中间件层拦截（避免搜索请求被 403）
-  const isProxyPath = url.pathname.startsWith("/proxy/");
+  // 在中间件里直接处理 /proxy/*（避免路由未匹配时落到静态 index.html）
+  if (url.pathname.startsWith("/proxy/")) {
+    return proxyOnRequest(context);
+  }
 
   if (
-    !isProxyPath &&
     isTurnstileEnabled(env) &&
     !(await hasValidTurnstileSession(request, env))
   ) {

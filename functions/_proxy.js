@@ -1,5 +1,5 @@
 // functions/proxy/[[path]].js
-import { hasValidTurnstileSession, isTurnstileEnabled } from "../_auth.js";
+import { hasValidTurnstileSession, isTurnstileEnabled } from "./_auth.js";
 
 // --- 配置 (现在从 Cloudflare 环境变量读取) ---
 // 在 Cloudflare Pages 设置 -> 函数 -> 环境变量绑定 中设置以下变量:
