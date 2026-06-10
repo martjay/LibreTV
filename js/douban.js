@@ -449,6 +449,7 @@ async function fetchDoubanData(url) {
     // 设置请求选项，包括信号和头部
     const fetchOptions = {
         signal: controller.signal,
+        credentials: 'same-origin',
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
             'Referer': 'https://movie.douban.com/',
