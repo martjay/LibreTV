@@ -19,10 +19,10 @@ export async function onRequest(context) {
   }
 
   const canonicalHost = env.CANONICAL_HOST || env.EXPECTED_HOSTNAME || "tv.444110.xyz";
-  if (url.hostname.endsWith(".pages.dev") && url.hostname !== canonicalHost) {
+  if (url.hostname.endsWith(".pages.dev")) {
     return Response.redirect(
       `https://${canonicalHost}${url.pathname}${url.search}`,
-      301,
+      302,
     );
   }
 

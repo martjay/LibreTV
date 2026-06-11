@@ -9,4 +9,3 @@ worker/
 node_modules/
 _routes.json
 _routes.generated.json
-_redirects
