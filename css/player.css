@@ -202,8 +202,14 @@ div.player-loading-text {
 }
 
 .episode-active {
-    background-color: #3b82f6 !important;
-    border-color: #60a5fa !important;
+    background-color: #3a2830 !important;
+    border-color: #5c3d48 !important;
+    color: #e8d0d8 !important;
+}
+
+.source-current-badge {
+    background-color: rgba(58, 40, 48, 0.9);
+    color: #e8d0d8;
 }
 
 .episode-grid {
@@ -274,7 +280,7 @@ div.player-loading-text {
 }
 
 input:checked + .slider {
-    background-color: #00ccff;
+    background-color: #5c3d48;
 }
 
 input:checked + .slider:before {

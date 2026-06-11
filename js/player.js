@@ -875,7 +875,7 @@ function renderEpisodes() {
         html += `
             <button id="episode-${realIndex}" 
                     onclick="playEpisode(${realIndex})" 
-                    class="px-4 py-2 ${isActive ? 'episode-active' : '!bg-[#222] hover:!bg-[#333] hover:!shadow-none'} !border ${isActive ? '!border-blue-500' : '!border-[#333]'} rounded-lg transition-colors text-center episode-btn">
+                    class="px-4 py-2 ${isActive ? 'episode-active' : '!bg-[#222] hover:!bg-[#333] hover:!shadow-none'} !border ${isActive ? '!border-[#5c3d48]' : '!border-[#333]'} rounded-lg transition-colors text-center episode-btn">
                 ${realIndex + 1}
             </button>
         `;
@@ -1698,7 +1698,7 @@ async function showSwitchResourceModal() {
                 </div>
                 ${isCurrentSource ? `
                     <div class="absolute inset-0 flex items-center justify-center">
-                        <div class="bg-blue-600 bg-opacity-75 rounded-lg px-2 py-0.5 text-xs text-white font-medium">
+                        <div class="source-current-badge rounded-lg px-2 py-0.5 text-xs font-medium">
                             当前播放
                         </div>
                     </div>
