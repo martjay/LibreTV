@@ -1,18 +1,9 @@
-import { getSitePassword, sha256Hex } from "./_auth.js";
+import {
+  verifyBanAdminAccess,
+} from "./_passwordauth.js";
 import { banIp, listAllBans, unbanIp } from "./_blocklist.js";
 
 export const ADMIN_BAN_PATH = "/__admin/bans";
-
-async function verifyAdminToken(request, env) {
-  const password = getSitePassword(env);
-  if (!password) return false;
-
-  const token = request.headers.get("X-Admin-Token");
-  if (!token || token.length !== 64) return false;
-
-  const expected = await sha256Hex(password);
-  return token === expected;
-}
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -24,13 +15,13 @@ function jsonResponse(data, status = 200) {
   });
 }
 
-function unauthorizedResponse() {
-  return jsonResponse({ error: "需要管理员密码" }, 401);
-}
-
 export async function handleBanAdminRequest(request, env) {
-  if (!(await verifyAdminToken(request, env))) {
-    return unauthorizedResponse();
+  const access = await verifyBanAdminAccess(request, env);
+  if (!access.ok) {
+    return jsonResponse(
+      { error: access.error, requireAdminAuth: access.requireAdminAuth || false },
+      access.status || 401,
+    );
   }
 
   const url = new URL(request.url);

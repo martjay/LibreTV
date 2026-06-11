@@ -1,206 +1,236 @@
-// 密码保护功能
+// 密码保护功能（需同时通过 Turnstile 人机验证 + 服务端密码校验）
+
+const PASSWORD_SESSION_KEY = "sitePasswordSession";
+
+function isTurnstileConfigured() {
+  return Boolean(window.__ENV__?.TURNSTILE_SITE_KEY);
+}
 
 /**
  * 检查是否设置了密码保护
- * 通过读取页面上嵌入的环境变量来检查
  */
 function isPasswordProtected() {
-    // 只检查普通密码
-    const pwd = window.__ENV__ && window.__ENV__.PASSWORD;
-    
-    // 检查普通密码是否有效
-    return typeof pwd === 'string' && pwd.length === 64 && !/^0+$/.test(pwd);
+  const pwd = window.__ENV__ && window.__ENV__.PASSWORD;
+  return typeof pwd === "string" && pwd.length === 64 && !/^0+$/.test(pwd);
 }
 
-/**
- * 是否强制要求配置环境变量密码（已取消强制，改由 Turnstile 人机验证保护）
- */
 function isPasswordRequired() {
-    return false;
+  return false;
 }
 
-/**
- * 强制密码保护检查 - 防止绕过
- * 在关键操作前都应该调用此函数
- */
-function ensurePasswordProtection() {
-    if (isPasswordProtected() && !isPasswordVerified()) {
-        showPasswordModal();
-        throw new Error('Password verification required');
-    }
-    return true;
+function markPasswordVerified() {
+  const currentHash = window.__ENV__?.PASSWORD;
+  sessionStorage.setItem(
+    PASSWORD_SESSION_KEY,
+    JSON.stringify({
+      verified: true,
+      passwordHash: currentHash,
+      timestamp: Date.now(),
+    }),
+  );
+  localStorage.setItem(
+    PASSWORD_CONFIG.localStorageKey,
+    JSON.stringify({
+      verified: true,
+      timestamp: Date.now(),
+      passwordHash: currentHash,
+    }),
+  );
 }
 
-window.isPasswordProtected = isPasswordProtected;
-window.isPasswordRequired = isPasswordRequired;
-
-/**
- * 验证用户输入的密码是否正确（异步，使用SHA-256哈希）
- */
-async function verifyPassword(password) {
-    try {
-        const correctHash = window.__ENV__?.PASSWORD;
-        if (!correctHash) return false;
-
-        const inputHash = await sha256(password);
-        const isValid = inputHash === correctHash;
-
-        if (isValid) {
-            localStorage.setItem(PASSWORD_CONFIG.localStorageKey, JSON.stringify({
-                verified: true,
-                timestamp: Date.now(),
-                passwordHash: correctHash
-            }));
-        }
-        return isValid;
-    } catch (error) {
-        console.error('验证密码时出错:', error);
-        return false;
-    }
-}
-
-// 验证状态检查
 function isPasswordVerified() {
-    try {
-        if (!isPasswordProtected()) return true;
+  try {
+    if (!isPasswordProtected()) return true;
 
-        const stored = localStorage.getItem(PASSWORD_CONFIG.localStorageKey);
-        if (!stored) return false;
+    const stored = sessionStorage.getItem(PASSWORD_SESSION_KEY);
+    if (!stored) return false;
 
-        const { timestamp, passwordHash } = JSON.parse(stored);
-        const currentHash = window.__ENV__?.PASSWORD;
-
-        return timestamp && passwordHash === currentHash &&
-            Date.now() - timestamp < PASSWORD_CONFIG.verificationTTL;
-    } catch (error) {
-        console.error('检查密码验证状态时出错:', error);
-        return false;
-    }
+    const { verified, passwordHash, timestamp } = JSON.parse(stored);
+    const currentHash = window.__ENV__?.PASSWORD;
+    return (
+      verified &&
+      passwordHash === currentHash &&
+      timestamp &&
+      Date.now() - timestamp < PASSWORD_CONFIG.verificationTTL
+    );
+  } catch (error) {
+    console.error("检查密码验证状态时出错:", error);
+    return false;
+  }
 }
 
-// 更新全局导出
+function ensurePasswordProtection() {
+  if (isPasswordProtected() && !isPasswordVerified()) {
+    showPasswordModal();
+    throw new Error("Password verification required");
+  }
+  return true;
+}
+
 window.isPasswordProtected = isPasswordProtected;
 window.isPasswordRequired = isPasswordRequired;
 window.isPasswordVerified = isPasswordVerified;
-window.verifyPassword = verifyPassword;
 window.ensurePasswordProtection = ensurePasswordProtection;
 
-// SHA-256实现，可用Web Crypto API
+let passwordTurnstileToken = "";
+let passwordTurnstileWidgetId = null;
+
+async function verifyPasswordWithServer(password) {
+  if (!isTurnstileConfigured()) {
+    throw new Error("站点未启用人机验证");
+  }
+  if (!passwordTurnstileToken) {
+    throw new Error("请先完成人机验证");
+  }
+
+  const response = await fetch("/__auth/password", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      "CF-Turnstile-Response": passwordTurnstileToken,
+    },
+    body: JSON.stringify({ password }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "验证失败");
+  }
+
+  return true;
+}
+
 async function sha256(message) {
-    if (window.crypto && crypto.subtle && crypto.subtle.digest) {
-        const msgBuffer = new TextEncoder().encode(message);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-    // HTTP 下调用原始 js‑sha256
-    if (typeof window._jsSha256 === 'function') {
-        return window._jsSha256(message);
-    }
-    throw new Error('No SHA-256 implementation available.');
+  if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  if (typeof window._jsSha256 === "function") {
+    return window._jsSha256(message);
+  }
+  throw new Error("No SHA-256 implementation available.");
 }
 
-/**
- * 显示密码验证弹窗
- */
+async function mountPasswordTurnstile() {
+  const container = document.getElementById("passwordTurnstile");
+  if (!container || !window.TurnstileUI) return;
+
+  passwordTurnstileToken = "";
+  passwordTurnstileWidgetId = await window.TurnstileUI.mountTurnstileWidget(
+    container,
+    (token) => {
+      passwordTurnstileToken = token || "";
+    },
+  );
+}
+
 function showPasswordModal() {
-    const passwordModal = document.getElementById('passwordModal');
-    if (passwordModal) {
-        // 防止出现豆瓣区域滚动条
-        document.getElementById('doubanArea').classList.add('hidden');
-        document.getElementById('passwordCancelBtn').classList.add('hidden');
+  const passwordModal = document.getElementById("passwordModal");
+  if (!passwordModal) return;
 
-        const title = passwordModal.querySelector('h2');
-        const description = passwordModal.querySelector('p');
-        if (title) title.textContent = '访问验证';
-        if (description) description.textContent = '请输入密码继续访问';
+  const doubanArea = document.getElementById("doubanArea");
+  if (doubanArea) doubanArea.classList.add("hidden");
 
-        const form = passwordModal.querySelector('form');
-        if (form) form.style.display = 'block';
+  const cancelBtn = document.getElementById("passwordCancelBtn");
+  if (cancelBtn) cancelBtn.classList.add("hidden");
 
-        passwordModal.style.display = 'flex';
+  const title = passwordModal.querySelector("h2");
+  const description = passwordModal.querySelector("p");
+  if (title) title.textContent = "访问验证";
+  if (description) {
+    description.textContent = "请先完成人机验证，再输入站点密码";
+  }
 
-        setTimeout(() => {
-            const passwordInput = document.getElementById('passwordInput');
-            if (passwordInput) passwordInput.focus();
-        }, 100);
-    }
+  passwordModal.style.display = "flex";
+  mountPasswordTurnstile().catch((error) => {
+    showPasswordError(error.message);
+  });
+
+  setTimeout(() => {
+    const passwordInput = document.getElementById("passwordInput");
+    if (passwordInput) passwordInput.focus();
+  }, 100);
 }
 
-/**
- * 隐藏密码验证弹窗
- */
 function hidePasswordModal() {
-    const passwordModal = document.getElementById('passwordModal');
-    if (passwordModal) {
-        // 隐藏密码错误提示
-        hidePasswordError();
+  const passwordModal = document.getElementById("passwordModal");
+  if (!passwordModal) return;
 
-        // 清空密码输入框
-        const passwordInput = document.getElementById('passwordInput');
-        if (passwordInput) passwordInput.value = '';
+  hidePasswordError();
 
-        passwordModal.style.display = 'none';
+  const passwordInput = document.getElementById("passwordInput");
+  if (passwordInput) passwordInput.value = "";
 
-        // 如果启用豆瓣区域则显示豆瓣区域
-        if (localStorage.getItem('doubanEnabled') === 'true') {
-            document.getElementById('doubanArea').classList.remove('hidden');
-            initDouban();
-        }
-    }
+  passwordTurnstileToken = "";
+  if (passwordTurnstileWidgetId) {
+    window.TurnstileUI?.resetTurnstileWidget(passwordTurnstileWidgetId);
+    passwordTurnstileWidgetId = null;
+  }
+
+  passwordModal.style.display = "none";
+
+  if (localStorage.getItem("doubanEnabled") === "true") {
+    const doubanArea = document.getElementById("doubanArea");
+    if (doubanArea) doubanArea.classList.remove("hidden");
+    if (typeof initDouban === "function") initDouban();
+  }
 }
 
-/**
- * 显示密码错误信息
- */
-function showPasswordError() {
-    const errorElement = document.getElementById('passwordError');
-    if (errorElement) {
-        errorElement.classList.remove('hidden');
-    }
+function showPasswordError(message) {
+  const errorElement = document.getElementById("passwordError");
+  if (errorElement) {
+    errorElement.textContent = message || "密码错误，请重试";
+    errorElement.classList.remove("hidden");
+  }
 }
 
-/**
- * 隐藏密码错误信息
- */
 function hidePasswordError() {
-    const errorElement = document.getElementById('passwordError');
-    if (errorElement) {
-        errorElement.classList.add('hidden');
-    }
+  const errorElement = document.getElementById("passwordError");
+  if (errorElement) {
+    errorElement.classList.add("hidden");
+    errorElement.textContent = "密码错误，请重试";
+  }
 }
 
-/**
- * 处理密码提交事件（异步）
- */
 async function handlePasswordSubmit() {
-    const passwordInput = document.getElementById('passwordInput');
-    const password = passwordInput ? passwordInput.value.trim() : '';
-    if (await verifyPassword(password)) {
-        hidePasswordModal();
+  const passwordInput = document.getElementById("passwordInput");
+  const submitBtn = document.getElementById("passwordSubmitBtn");
+  const password = passwordInput ? passwordInput.value.trim() : "";
 
-        // 触发密码验证成功事件
-        document.dispatchEvent(new CustomEvent('passwordVerified'));
-    } else {
-        showPasswordError();
-        if (passwordInput) {
-            passwordInput.value = '';
-            passwordInput.focus();
-        }
+  if (!password) {
+    showPasswordError("请输入密码");
+    return;
+  }
+
+  if (submitBtn) submitBtn.disabled = true;
+
+  try {
+    await verifyPasswordWithServer(password);
+    markPasswordVerified();
+    hidePasswordModal();
+    document.dispatchEvent(new CustomEvent("passwordVerified"));
+  } catch (error) {
+    showPasswordError(error.message);
+    passwordTurnstileToken = "";
+    if (passwordTurnstileWidgetId) {
+      window.TurnstileUI?.resetTurnstileWidget(passwordTurnstileWidgetId);
     }
+    if (passwordInput) {
+      passwordInput.value = "";
+      passwordInput.focus();
+    }
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
 }
 
-/**
- * 初始化密码验证系统
- */
 function initPasswordProtection() {
-    if (isPasswordProtected() && !isPasswordVerified()) {
-        showPasswordModal();
-        return;
-    }
+  if (isPasswordProtected() && !isPasswordVerified()) {
+    showPasswordModal();
+  }
 }
 
-// 在页面加载完成后初始化密码保护
-document.addEventListener('DOMContentLoaded', function () {
-    initPasswordProtection();
-});
+document.addEventListener("DOMContentLoaded", initPasswordProtection);

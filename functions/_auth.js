@@ -11,7 +11,13 @@ export async function sha256Hex(message) {
 }
 const VERIFY_PATH = "/__turnstile_verify";
 const COOKIE_NAME = "ts_verified";
+export const PASSWORD_AUTH_PATH = "/__auth/password";
+export const ADMIN_AUTH_PATH = "/__admin/auth";
+export const ADMIN_LOGOUT_PATH = "/__admin/logout";
+const PWD_COOKIE_NAME = "pwd_verified";
+const ADMIN_GATE_COOKIE = "admin_gate";
 const DEFAULT_SESSION_HOURS = 24;
+const DEFAULT_ADMIN_GATE_MINUTES = 10;
 
 export function getSitePassword(env) {
   return env.SITE_PASSWORD || env.PASSWORD || "";
@@ -27,6 +33,63 @@ export function getVerifyPath() {
 
 export function clearTurnstileCookieHeader() {
   return `${COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
+export function clearAdminGateCookieHeader() {
+  return `${ADMIN_GATE_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
+export function clearPasswordSessionCookieHeader() {
+  return `${PWD_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function getAdminGateMinutes(env) {
+  const minutes = parseInt(env.ADMIN_GATE_MINUTES || String(DEFAULT_ADMIN_GATE_MINUTES), 10);
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : DEFAULT_ADMIN_GATE_MINUTES;
+}
+
+async function createSignedSessionCookie(name, payload, maxAgeSeconds, env) {
+  const sig = await signValue(payload, env.TURNSTILE_SECRET_KEY);
+  const value = `${payload}.${sig}`;
+  return `${name}=${value}; Path=/; Max-Age=${maxAgeSeconds}; HttpOnly; Secure; SameSite=Lax`;
+}
+
+export async function createPasswordSessionCookie(env) {
+  const expiresAt = Date.now() + getSessionHours(env) * 60 * 60 * 1000;
+  const payload = `pwd:${expiresAt}`;
+  return createSignedSessionCookie(PWD_COOKIE_NAME, payload, getSessionHours(env) * 60 * 60, env);
+}
+
+export async function createAdminGateCookie(env) {
+  const minutes = getAdminGateMinutes(env);
+  const expiresAt = Date.now() + minutes * 60 * 1000;
+  const payload = `admin:${expiresAt}`;
+  return createSignedSessionCookie(ADMIN_GATE_COOKIE, payload, minutes * 60, env);
+}
+
+async function verifySignedSessionCookie(request, env, cookieName, prefix) {
+  if (!isTurnstileEnabled(env)) return true;
+
+  const cookie = request.headers.get("Cookie") || "";
+  const match = cookie.match(new RegExp(`${cookieName}=([^;]+)`));
+  if (!match) return false;
+
+  const [rawPayload, sig] = match[1].split(".");
+  if (!rawPayload || !sig || !rawPayload.startsWith(`${prefix}:`)) return false;
+
+  const expiresAt = parseInt(rawPayload.slice(prefix.length + 1), 10);
+  if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) return false;
+
+  const expected = await signValue(rawPayload, env.TURNSTILE_SECRET_KEY);
+  return sig === expected;
+}
+
+export async function hasValidPasswordSession(request, env) {
+  return verifySignedSessionCookie(request, env, PWD_COOKIE_NAME, "pwd");
+}
+
+export async function hasValidAdminGate(request, env) {
+  return verifySignedSessionCookie(request, env, ADMIN_GATE_COOKIE, "admin");
 }
 
 function getSessionHours(env) {

@@ -182,7 +182,7 @@
             <div class="p-3 bg-[#151515] rounded-lg shadow-inner">
                 <label class="block text-sm font-medium text-gray-400 mb-3 border-b border-[#333] pb-1">安全管理</label>
                 <p class="text-xs text-gray-500 mb-3">管理自动/手动封禁的 IP，对错封 IP 进行放行</p>
-                <button onclick="showBanManageModal()" class="px-4 py-2 w-full bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm transition-all duration-300">IP 封禁管理</button>
+                <button onclick="showBanManageModal()" class="px-4 py-2 w-full bg-[#333] hover:bg-[#444] border border-[#444] text-gray-200 rounded-lg text-sm transition-all duration-300">IP 封禁管理</button>
             </div>
         </div>
     </div>
@@ -340,13 +340,14 @@
                 <h2 class="text-2xl font-bold gradient-text">访问验证</h2>
             </div>
             <div class="mb-6">
-                <p class="text-gray-300 mb-4">请输入密码继续访问</p>
+                <p class="text-gray-300 mb-4">请先完成人机验证，再输入站点密码</p>
+                <div id="passwordTurnstile" class="flex justify-center mb-4"></div>
                 <form id="passwordForm" onsubmit="handlePasswordSubmit(); return false;">
                     <input type="text" name="username" id="username" autocomplete="username" style="display:none" tabindex="-1" aria-hidden="true">
-                    <input type="password" id="passwordInput" class="w-full bg-[#111] border border-[#333] text-white px-4 py-3 rounded-lg focus:outline-none focus:border-white transition-colors" placeholder="密码..." autocomplete="new-password">
+                    <input type="password" id="passwordInput" class="w-full bg-[#111] border border-[#333] text-white px-4 py-3 rounded-lg focus:outline-none focus:border-[#555] transition-colors" placeholder="密码..." autocomplete="new-password">
                     <div class="mt-4 w-full flex space-x-4">
-                        <button id="passwordSubmitBtn" type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">提交</button>
-                        <button id="passwordCancelBtn" type="button" onclick="hidePasswordModal()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">取消</button>
+                        <button id="passwordSubmitBtn" type="submit" class="flex-1 bg-[#333] hover:bg-[#444] border border-[#444] text-gray-200 px-4 py-2 rounded">提交</button>
+                        <button id="passwordCancelBtn" type="button" onclick="hidePasswordModal()" class="flex-1 bg-[#333] hover:bg-[#444] border border-[#444] text-gray-200 px-4 py-2 rounded">取消</button>
                     </div>
                 </form>
                 <p id="passwordError" class="text-red-500 mt-2 hidden">密码错误，请重试</p>
@@ -422,6 +423,7 @@
     <script src="js/ui.js"></script>
     <script src="js/api.js"></script>
     <script src="js/douban.js"></script>
+    <script src="js/turnstile-ui.js"></script>
     <script src="js/password.js"></script>
     <script src="js/ban-admin.js"></script>
     <script src="js/search.js"></script>
@@ -439,6 +441,7 @@
         // PASSWORD 变量将在这里被服务器端注入
         window.__ENV__.PASSWORD = "{{PASSWORD}}";
         window.__ENV__.ADMINPASSWORD = "{{ADMINPASSWORD}}";
+        window.__ENV__.TURNSTILE_SITE_KEY = "{{TURNSTILE_SITE_KEY}}";
     </script>
 
     <!-- 添加弹窗和URL搜索参数处理脚本 -->

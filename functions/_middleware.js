@@ -12,6 +12,14 @@ import { blockedResponse, isBlockedIp } from "./_blocklist.js";
 import { trackAndCheckBot } from "./_botdetect.js";
 import { ADMIN_BAN_PATH, handleBanAdminRequest } from "./_banadmin.js";
 import {
+  ADMIN_AUTH_PATH,
+  ADMIN_LOGOUT_PATH,
+  PASSWORD_AUTH_PATH,
+  handleAdminAuthRequest,
+  handleAdminLogoutRequest,
+  handlePasswordAuthRequest,
+} from "./_passwordauth.js";
+import {
   checkAccessRateLimit,
   rateLimitResponse,
 } from "./_ratelimit.js";
@@ -21,12 +29,24 @@ export async function onRequest(context) {
   const { request, env, next } = context;
   const url = new URL(request.url);
 
-  if (url.pathname === ADMIN_BAN_PATH || url.pathname.startsWith(`${ADMIN_BAN_PATH}/`)) {
-    return handleBanAdminRequest(request, env);
-  }
-
   if (await isBlockedIp(request, env)) {
     return blockedResponse();
+  }
+
+  if (url.pathname === PASSWORD_AUTH_PATH) {
+    return handlePasswordAuthRequest(request, env);
+  }
+
+  if (url.pathname === ADMIN_AUTH_PATH) {
+    return handleAdminAuthRequest(request, env);
+  }
+
+  if (url.pathname === ADMIN_LOGOUT_PATH) {
+    return handleAdminLogoutRequest(request);
+  }
+
+  if (url.pathname === ADMIN_BAN_PATH || url.pathname.startsWith(`${ADMIN_BAN_PATH}/`)) {
+    return handleBanAdminRequest(request, env);
   }
 
   const canonicalHost = env.CANONICAL_HOST || env.EXPECTED_HOSTNAME || "tv.444110.xyz";
@@ -144,6 +164,7 @@ export async function onRequest(context) {
 
   html = html.replace(/\{\{PASSWORD\}\}/g, passwordHash);
   html = html.replace(/\{\{ADMINPASSWORD\}\}/g, "");
+  html = html.replace(/\{\{TURNSTILE_SITE_KEY\}\}/g, env.TURNSTILE_SITE_KEY || "");
 
   const headers = new Headers(response.headers);
   headers.delete("content-length");
