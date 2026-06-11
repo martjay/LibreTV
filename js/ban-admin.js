@@ -158,7 +158,7 @@ function showBanManageModal() {
     <div class="bg-[#191919] rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto relative">
       <button id="closeBanModal" class="absolute top-4 right-4 text-gray-400 hover:text-white text-xl">&times;</button>
       <h3 class="text-xl font-bold text-white mb-2">IP 封禁管理</h3>
-      <p class="text-xs text-gray-500 mb-4">自动封禁：半小时内持续、有规律的搜索/点击行为。手动封禁与放行需站点密码。</p>
+      <p class="text-xs text-gray-500 mb-4">自动封禁：持续约 30 分钟、每分钟固定次数的规律性搜索/点击。手动封禁与放行需站点密码。</p>
 
       <form id="addBanForm" class="flex gap-2 mb-4">
         <input type="text" id="banIpInput" placeholder="IP 地址，如 1.2.3.4"
