@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     window.history.replaceState(
                         { search: keyword }, 
-                        `搜索: ${keyword} - LibreTV`, 
+                        `搜索: ${keyword} - FreeTV`, 
                         window.location.href
                     );
                 } catch (e) {
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 window.history.replaceState(
                     { search: searchQuery }, 
-                    `搜索: ${searchQuery} - LibreTV`, 
+                    `搜索: ${searchQuery} - FreeTV`, 
                     `/s=${encodeURIComponent(searchQuery)}`
                 );
             } catch (e) {
