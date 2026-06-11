@@ -2,6 +2,10 @@ name = "libretv"
 main = "_worker.js"
 compatibility_date = "2024-01-01"
 
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [vars]
 EXPECTED_HOSTNAME = "tv.444110.xyz"
 TURNSTILE_SITE_KEY = "0x4AAAAAAA_eDna9q6FWwy6r"
