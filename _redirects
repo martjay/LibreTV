@@ -1,2 +1,2 @@
-# Pages 预览域名强制跳转到正式域名，避免绕过 Worker 防护
-/* https://tv.444110.xyz/:splat 301
+# 仅跳转 Pages 预览域名，切勿使用 /* 以免 tv.444110.xyz 自身循环
+https://libretv-0r0.pages.dev/* https://tv.444110.xyz/:splat 301
