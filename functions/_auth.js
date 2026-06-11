@@ -1,4 +1,4 @@
-import { clearSearchRateLimit } from "./_ratelimit.js";
+import { clearAccessRateLimit } from "./_ratelimit.js";
 
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -105,9 +105,10 @@ export async function validateTurnstileToken(token, remoteip, env) {
   return result;
 }
 
-export function turnstileChallengePage(env, redirectUrl) {
+export function turnstileChallengePage(env, redirectUrl, subtitle) {
   const siteKey = env.TURNSTILE_SITE_KEY;
   const safeRedirect = JSON.stringify(redirectUrl);
+  const hint = subtitle || "请完成人机验证后继续访问";
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -140,7 +141,7 @@ export function turnstileChallengePage(env, redirectUrl) {
 <body>
   <div class="card">
     <h1>访问验证</h1>
-    <p>请完成人机验证后继续访问</p>
+    <p>${hint}</p>
     <div class="turnstile-wrap">
       <div class="cf-turnstile" data-sitekey="${siteKey}" data-theme="dark" data-callback="onTurnstileOk"></div>
     </div>
@@ -202,7 +203,7 @@ export async function handleTurnstileVerify(request, env) {
     });
   }
 
-  await clearSearchRateLimit(request);
+  await clearAccessRateLimit(request);
 
   const cookie = await createTurnstileCookie(env);
   return new Response(JSON.stringify({ redirect }), {

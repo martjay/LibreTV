@@ -467,16 +467,8 @@ async function fetchDoubanData(url) {
         const response = await fetch(proxiedUrl, fetchOptions);
         clearTimeout(timeoutId);
 
-        if (response.status === 429) {
-            try {
-                const data = await response.json();
-                if (data.requireTurnstile) {
-                    window.location.reload();
-                    return null;
-                }
-            } catch {
-                // ignore
-            }
+        if (response.status === 429 && await handleRateLimitResponse(response)) {
+            return null;
         }
         
         if (!response.ok) {

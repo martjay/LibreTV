@@ -10,8 +10,8 @@ import {
 } from "./_auth.js";
 import { blockedResponse, isBlockedIp } from "./_blocklist.js";
 import {
-  checkSearchRateLimit,
-  searchRateLimitResponse,
+  checkAccessRateLimit,
+  rateLimitResponse,
 } from "./_ratelimit.js";
 import { onRequest as proxyOnRequest } from "./_proxy.js";
 
@@ -35,20 +35,58 @@ export async function onRequest(context) {
     return handleTurnstileVerify(request, env);
   }
 
+  async function enforceRateLimit(contentType = "json") {
+    const rate = await checkAccessRateLimit(request, env);
+    if (!rate.exceeded) return null;
+
+    const clearCookie = clearTurnstileCookieHeader();
+    if (contentType === "html") {
+      return new Response(
+        turnstileChallengePage(
+          env,
+          url.pathname + url.search,
+          "访问过于频繁，请重新完成人机验证",
+        ),
+        {
+          status: 403,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store",
+            "Set-Cookie": clearCookie,
+          },
+        },
+      );
+    }
+    return rateLimitResponse(clearCookie);
+  }
+
   // 在中间件里直接处理 /proxy/*（避免路由未匹配时落到静态 index.html）
   if (url.pathname.startsWith("/proxy/")) {
     if (isTurnstileEnabled(env)) {
-      const rate = await checkSearchRateLimit(request, env);
-      if (rate.exceeded) {
-        return searchRateLimitResponse(clearTurnstileCookieHeader());
-      }
+      const limited = await enforceRateLimit("json");
+      if (limited) return limited;
     }
     return proxyOnRequest(context);
   }
 
+  const hasSession =
+    isTurnstileEnabled(env) && (await hasValidTurnstileSession(request, env));
+
+  if (hasSession) {
+    const accept = request.headers.get("Accept") || "";
+    const wantsHtml =
+      accept.includes("text/html") ||
+      url.pathname.endsWith(".html") ||
+      url.pathname === "/";
+    if (wantsHtml) {
+      const limited = await enforceRateLimit("html");
+      if (limited) return limited;
+    }
+  }
+
   if (
     isTurnstileEnabled(env) &&
-    !(await hasValidTurnstileSession(request, env))
+    !hasSession
   ) {
     if (request.method === "OPTIONS") {
       return next();

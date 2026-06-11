@@ -1,17 +1,3 @@
-async function handleSearchRateLimitResponse(response) {
-    if (response.status !== 429) return false;
-    try {
-        const data = await response.json();
-        if (data.requireTurnstile) {
-            window.location.reload();
-            return true;
-        }
-    } catch {
-        // ignore
-    }
-    return false;
-}
-
 async function searchByAPIAndKeyWord(apiId, query) {
     try {
         let apiUrl, apiName, apiBaseUrl;
@@ -50,7 +36,7 @@ async function searchByAPIAndKeyWord(apiId, query) {
         
         clearTimeout(timeoutId);
         
-        if (await handleSearchRateLimitResponse(response)) {
+        if (await handleRateLimitResponse(response)) {
             return [];
         }
         
@@ -106,7 +92,7 @@ async function searchByAPIAndKeyWord(apiId, query) {
                         
                         clearTimeout(pageTimeoutId);
                         
-                        if (await handleSearchRateLimitResponse(pageResponse)) {
+                        if (await handleRateLimitResponse(pageResponse)) {
                             return [];
                         }
                         

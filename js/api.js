@@ -41,6 +41,10 @@ async function handleApiRequest(url) {
                 });
                 
                 clearTimeout(timeoutId);
+
+                if (await handleRateLimitResponse(response)) {
+                    throw new Error('访问过于频繁');
+                }
                 
                 if (!response.ok) {
                     throw new Error(`API请求失败: ${response.status}`);
@@ -131,6 +135,10 @@ async function handleApiRequest(url) {
                 });
                 
                 clearTimeout(timeoutId);
+
+                if (await handleRateLimitResponse(response)) {
+                    throw new Error('访问过于频繁');
+                }
                 
                 if (!response.ok) {
                     throw new Error(`详情请求失败: ${response.status}`);
@@ -236,6 +244,10 @@ async function handleCustomApiSpecialDetail(id, customApi) {
         });
         
         clearTimeout(timeoutId);
+
+        if (typeof handleRateLimitResponse === 'function' && await handleRateLimitResponse(response)) {
+            throw new Error('访问过于频繁');
+        }
         
         if (!response.ok) {
             throw new Error(`自定义API详情页请求失败: ${response.status}`);
@@ -304,6 +316,10 @@ async function handleSpecialSourceDetail(id, sourceCode) {
         });
         
         clearTimeout(timeoutId);
+
+        if (typeof handleRateLimitResponse === 'function' && await handleRateLimitResponse(response)) {
+            throw new Error('访问过于频繁');
+        }
         
         if (!response.ok) {
             throw new Error(`详情页请求失败: ${response.status}`);
@@ -391,6 +407,10 @@ async function handleAggregatedSearch(searchQuery) {
             });
             
             const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+            if (typeof handleRateLimitResponse === 'function' && await handleRateLimitResponse(response)) {
+                throw new Error('访问过于频繁');
+            }
             
             if (!response.ok) {
                 throw new Error(`${source}源请求失败: ${response.status}`);
@@ -506,6 +526,10 @@ async function handleMultipleCustomSearch(searchQuery, customApiUrls) {
             });
             
             const response = await Promise.race([fetchPromise, timeoutPromise]);
+
+            if (typeof handleRateLimitResponse === 'function' && await handleRateLimitResponse(response)) {
+                throw new Error('访问过于频繁');
+            }
             
             if (!response.ok) {
                 throw new Error(`自定义API ${index+1} 请求失败: ${response.status}`);
