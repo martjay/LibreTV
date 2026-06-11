@@ -1,3 +1,5 @@
+import { clearSearchRateLimit } from "./_ratelimit.js";
+
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 export async function sha256Hex(message) {
@@ -21,6 +23,10 @@ export function isTurnstileEnabled(env) {
 
 export function getVerifyPath() {
   return VERIFY_PATH;
+}
+
+export function clearTurnstileCookieHeader() {
+  return `${COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 }
 
 function getSessionHours(env) {
@@ -195,6 +201,8 @@ export async function handleTurnstileVerify(request, env) {
       headers: { "Content-Type": "application/json" },
     });
   }
+
+  await clearSearchRateLimit(request);
 
   const cookie = await createTurnstileCookie(env);
   return new Response(JSON.stringify({ redirect }), {

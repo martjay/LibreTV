@@ -6,8 +6,13 @@ import {
   isTurnstileEnabled,
   sha256Hex,
   turnstileChallengePage,
+  clearTurnstileCookieHeader,
 } from "./_auth.js";
 import { blockedResponse, isBlockedIp } from "./_blocklist.js";
+import {
+  checkSearchRateLimit,
+  searchRateLimitResponse,
+} from "./_ratelimit.js";
 import { onRequest as proxyOnRequest } from "./_proxy.js";
 
 export async function onRequest(context) {
@@ -32,6 +37,12 @@ export async function onRequest(context) {
 
   // 在中间件里直接处理 /proxy/*（避免路由未匹配时落到静态 index.html）
   if (url.pathname.startsWith("/proxy/")) {
+    if (isTurnstileEnabled(env)) {
+      const rate = await checkSearchRateLimit(request, env);
+      if (rate.exceeded) {
+        return searchRateLimitResponse(clearTurnstileCookieHeader());
+      }
+    }
     return proxyOnRequest(context);
   }
 

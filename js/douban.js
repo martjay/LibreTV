@@ -466,6 +466,18 @@ async function fetchDoubanData(url) {
         // 尝试直接访问（豆瓣API可能允许部分CORS请求）
         const response = await fetch(proxiedUrl, fetchOptions);
         clearTimeout(timeoutId);
+
+        if (response.status === 429) {
+            try {
+                const data = await response.json();
+                if (data.requireTurnstile) {
+                    window.location.reload();
+                    return null;
+                }
+            } catch {
+                // ignore
+            }
+        }
         
         if (!response.ok) {
             throw new Error(`HTTP error! Status: ${response.status}`);

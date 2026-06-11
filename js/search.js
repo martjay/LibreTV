@@ -1,3 +1,17 @@
+async function handleSearchRateLimitResponse(response) {
+    if (response.status !== 429) return false;
+    try {
+        const data = await response.json();
+        if (data.requireTurnstile) {
+            window.location.reload();
+            return true;
+        }
+    } catch {
+        // ignore
+    }
+    return false;
+}
+
 async function searchByAPIAndKeyWord(apiId, query) {
     try {
         let apiUrl, apiName, apiBaseUrl;
@@ -35,6 +49,10 @@ async function searchByAPIAndKeyWord(apiId, query) {
         });
         
         clearTimeout(timeoutId);
+        
+        if (await handleSearchRateLimitResponse(response)) {
+            return [];
+        }
         
         if (!response.ok) {
             return [];
@@ -87,6 +105,10 @@ async function searchByAPIAndKeyWord(apiId, query) {
                         });
                         
                         clearTimeout(pageTimeoutId);
+                        
+                        if (await handleSearchRateLimitResponse(pageResponse)) {
+                            return [];
+                        }
                         
                         if (!pageResponse.ok) return [];
                         
