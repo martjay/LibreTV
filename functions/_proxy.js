@@ -260,21 +260,47 @@ export async function onRequest(context) {
         return `/proxy/${encodeURIComponent(targetUrl)}`;
     }
 
+    function getProxyReferer(targetUrl) {
+        try {
+            const host = new URL(targetUrl).hostname.toLowerCase();
+            if (host.includes('doubanio.com') || host.endsWith('douban.com')) {
+                return 'https://movie.douban.com/';
+            }
+        } catch {
+            // ignore
+        }
+
+        const requestReferer = request.headers.get('Referer');
+        if (requestReferer) return requestReferer;
+
+        try {
+            return `${new URL(targetUrl).origin}/`;
+        } catch {
+            return '';
+        }
+    }
+
+    function shouldFetchAsBinary(targetUrl, contentType) {
+        if (contentType) {
+            const lower = contentType.toLowerCase();
+            if (lower.startsWith('image/') || lower.startsWith('video/') || lower.startsWith('audio/')) {
+                return !lower.includes('mpegurl') && !lower.includes('m3u8');
+            }
+        }
+        return isMediaFile(targetUrl, contentType) && !/\.m3u8(\?|$|#)/i.test(targetUrl);
+    }
+
     // 获取远程内容及其类型
     async function fetchContentWithType(targetUrl) {
         const headers = new Headers({
             'User-Agent': getRandomUserAgent(),
             'Accept': '*/*',
-            // 尝试传递一些原始请求的头信息
             'Accept-Language': request.headers.get('Accept-Language') || 'zh-CN,zh;q=0.9,en;q=0.8',
-            // 尝试设置 Referer 为目标网站的域名，或者传递原始 Referer
-            'Referer': request.headers.get('Referer') || new URL(targetUrl).origin
+            'Referer': getProxyReferer(targetUrl),
         });
 
         try {
-            // 直接请求目标 URL
             logDebug(`开始直接请求: ${targetUrl}`);
-            // Cloudflare Functions 的 fetch 默认支持重定向
             const response = await fetch(targetUrl, { headers, redirect: 'follow' });
 
             if (!response.ok) {
@@ -283,15 +309,15 @@ export async function onRequest(context) {
                  throw new Error(`HTTP error ${response.status}: ${response.statusText}. URL: ${targetUrl}. Body: ${errorBody.substring(0, 150)}`);
             }
 
-            // 读取响应内容为文本
-            const content = await response.text();
             const contentType = response.headers.get('Content-Type') || '';
-            logDebug(`请求成功: ${targetUrl}, Content-Type: ${contentType}, 内容长度: ${content.length}`);
-            return { content, contentType, responseHeaders: response.headers }; // 同时返回原始响应头
+            const isBinary = shouldFetchAsBinary(targetUrl, contentType);
+            const content = isBinary ? await response.arrayBuffer() : await response.text();
+            const size = isBinary ? content.byteLength : content.length;
+            logDebug(`请求成功: ${targetUrl}, Content-Type: ${contentType}, 内容长度: ${size}, binary: ${isBinary}`);
+            return { content, contentType, responseHeaders: response.headers, isBinary };
 
         } catch (error) {
              logDebug(`请求彻底失败: ${targetUrl}: ${error.message}`);
-            // 抛出更详细的错误
             throw new Error(`请求目标URL失败 ${targetUrl}: ${error.message}`);
         }
     }
@@ -524,7 +550,9 @@ export async function onRequest(context) {
             kvNamespace = null;
         }
 
-        if (kvNamespace) {
+        const skipKvCache = /\.(jpg|jpeg|png|gif|webp|ico|svg|avif)(\?|$|#)/i.test(targetUrl);
+
+        if (kvNamespace && !skipKvCache) {
             try {
                 const cachedDataJson = await kvNamespace.get(cacheKey); // 直接获取字符串
                 if (cachedDataJson) {
@@ -553,25 +581,23 @@ export async function onRequest(context) {
         }
 
         // --- 实际请求 ---
-        const { content, contentType, responseHeaders } = await fetchContentWithType(targetUrl);
+        const { content, contentType, responseHeaders, isBinary } = await fetchContentWithType(targetUrl);
 
         // --- 写入缓存 (KV) ---
-        if (kvNamespace) {
+        if (kvNamespace && !isBinary) {
              try {
                  const headersToCache = {};
                  responseHeaders.forEach((value, key) => { headersToCache[key.toLowerCase()] = value; });
                  const cacheValue = { body: content, headers: JSON.stringify(headersToCache) };
-                 // 注意 KV 写入限制
                  waitUntil(kvNamespace.put(cacheKey, JSON.stringify(cacheValue), { expirationTtl: CACHE_TTL }));
                  logDebug(`已将原始内容写入缓存: ${targetUrl}`);
             } catch (kvError) {
                  logDebug(`向 KV 写入缓存失败 (${cacheKey}): ${kvError.message}`);
-                 // 写入失败不影响返回结果
             }
         }
 
         // --- 处理响应 ---
-        if (isM3u8Content(content, contentType)) {
+        if (!isBinary && isM3u8Content(content, contentType)) {
             logDebug(`内容是 M3U8，开始处理: ${targetUrl}`);
             const processedM3u8 = await processM3u8Content(targetUrl, content, 0, env);
             return createM3u8Response(processedM3u8);
