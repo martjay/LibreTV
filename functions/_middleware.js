@@ -18,6 +18,14 @@ export async function onRequest(context) {
     return blockedResponse();
   }
 
+  const canonicalHost = env.CANONICAL_HOST || env.EXPECTED_HOSTNAME || "tv.444110.xyz";
+  if (url.hostname.endsWith(".pages.dev") && url.hostname !== canonicalHost) {
+    return Response.redirect(
+      `https://${canonicalHost}${url.pathname}${url.search}`,
+      301,
+    );
+  }
+
   if (url.pathname === getVerifyPath()) {
     return handleTurnstileVerify(request, env);
   }

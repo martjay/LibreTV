@@ -1,0 +1,2 @@
+# Pages 预览域名强制跳转到正式域名，避免绕过 Worker 防护
+/* https://tv.444110.xyz/:splat 301
