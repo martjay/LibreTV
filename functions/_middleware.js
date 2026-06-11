@@ -9,6 +9,8 @@ import {
   clearTurnstileCookieHeader,
 } from "./_auth.js";
 import { blockedResponse, isBlockedIp } from "./_blocklist.js";
+import { trackAndCheckBot } from "./_botdetect.js";
+import { ADMIN_BAN_PATH, handleBanAdminRequest } from "./_banadmin.js";
 import {
   checkAccessRateLimit,
   rateLimitResponse,
@@ -19,7 +21,11 @@ export async function onRequest(context) {
   const { request, env, next } = context;
   const url = new URL(request.url);
 
-  if (isBlockedIp(request, env)) {
+  if (url.pathname === ADMIN_BAN_PATH || url.pathname.startsWith(`${ADMIN_BAN_PATH}/`)) {
+    return handleBanAdminRequest(request, env);
+  }
+
+  if (await isBlockedIp(request, env)) {
     return blockedResponse();
   }
 
@@ -62,6 +68,10 @@ export async function onRequest(context) {
 
   // 在中间件里直接处理 /proxy/*（避免路由未匹配时落到静态 index.html）
   if (url.pathname.startsWith("/proxy/")) {
+    const botResult = await trackAndCheckBot(request, env);
+    if (botResult.banned) {
+      return blockedResponse();
+    }
     if (isTurnstileEnabled(env)) {
       const limited = await enforceRateLimit("json");
       if (limited) return limited;
@@ -78,6 +88,10 @@ export async function onRequest(context) {
       accept.includes("text/html") ||
       url.pathname.endsWith(".html") ||
       url.pathname === "/";
+    const botResult = await trackAndCheckBot(request, env);
+    if (botResult.banned) {
+      return blockedResponse();
+    }
     if (wantsHtml) {
       const limited = await enforceRateLimit("html");
       if (limited) return limited;

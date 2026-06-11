@@ -145,6 +145,8 @@ function classifyRequest(request) {
   return classifyPageRequest(url);
 }
 
+export { classifyRequest };
+
 async function readRecord(cache, cacheKey) {
   const cached = await cache.match(cacheKey);
   if (!cached) return { actions: [] };
