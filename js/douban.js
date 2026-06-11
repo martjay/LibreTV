@@ -423,11 +423,12 @@ function renderRecommend(tag, pageLimit, pageStart) {
     container.classList.add("relative");
     container.insertAdjacentHTML('beforeend', loadingOverlayHTML);
     
-    const target = `https://movie.douban.com/j/search_subjects?type=${doubanMovieTvCurrentSwitch}&tag=${tag}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`;
+    const target = `https://movie.douban.com/j/search_subjects?type=${doubanMovieTvCurrentSwitch}&tag=${encodeURIComponent(tag)}&sort=recommend&page_limit=${pageLimit}&page_start=${pageStart}`;
     
     // 使用通用请求函数
     fetchDoubanData(target)
         .then(data => {
+            if (!data) return;
             renderDoubanCards(data, container);
         })
         .catch(error => {
@@ -510,7 +511,7 @@ function renderDoubanCards(data, container) {
     const fragment = document.createDocumentFragment();
     
     // 如果没有数据
-    if (!data.subjects || data.subjects.length === 0) {
+    if (!data || !data.subjects || data.subjects.length === 0) {
         const emptyEl = document.createElement("div");
         emptyEl.className = "col-span-full text-center py-8";
         emptyEl.innerHTML = `

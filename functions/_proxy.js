@@ -161,11 +161,20 @@ export async function onRequest(context) {
                     return null;
                  }
              }
-             return decodedUrl;
+             return normalizeTargetUrl(decodedUrl);
 
         } catch (e) {
             logDebug(`解码目标URL时出错: ${encodedUrl} - ${e.message}`);
             return null;
+        }
+    }
+
+    // 将 query 中的非 ASCII 字符（如中文 tag）规范化为 percent-encoding，避免 fetch 向豆瓣等站点发请求时 400
+    function normalizeTargetUrl(urlStr) {
+        try {
+            return new URL(urlStr).toString();
+        } catch {
+            return urlStr;
         }
     }
 

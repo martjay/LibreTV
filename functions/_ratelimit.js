@@ -107,12 +107,12 @@ export function classifyProxyRequest(pathname) {
     return { key: extractM3u8Key(targetUrl) };
   }
 
+  // 豆瓣热门为首页只读元数据，不计入访问频率限制
   if (
     lower.includes("douban.com") &&
     (lower.includes("search_subjects") || lower.includes("search_tags"))
   ) {
-    const key = extractDoubanKey(targetUrl);
-    return key ? { key } : null;
+    return null;
   }
 
   return null;
