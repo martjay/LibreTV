@@ -25,10 +25,24 @@ async function getPasswordHash() {
         return storedHash;
     }
     
-    // 2. 尝试从密码验证状态获取（password.js 验证后存储的哈希）
-    const passwordVerified = localStorage.getItem('passwordVerified');
+    // 2. 尝试从密码验证状态获取（password.js 验证后存储的 JSON）
+    const passwordRecord = localStorage.getItem(PASSWORD_CONFIG?.localStorageKey || 'passwordVerified');
+    if (passwordRecord) {
+        try {
+            const parsed = JSON.parse(passwordRecord);
+            if (parsed?.verified && parsed?.passwordHash) {
+                localStorage.setItem('proxyAuthHash', parsed.passwordHash);
+                cachedPasswordHash = parsed.passwordHash;
+                return parsed.passwordHash;
+            }
+        } catch {
+            // ignore
+        }
+    }
+
     const storedPasswordHash = localStorage.getItem('passwordHash');
-    if (passwordVerified === 'true' && storedPasswordHash) {
+    const legacyVerified = localStorage.getItem('passwordVerified');
+    if (legacyVerified === 'true' && storedPasswordHash) {
         localStorage.setItem('proxyAuthHash', storedPasswordHash);
         cachedPasswordHash = storedPasswordHash;
         return storedPasswordHash;

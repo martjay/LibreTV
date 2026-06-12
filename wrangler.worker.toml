@@ -4,22 +4,39 @@ compatibility_date = "2024-01-01"
 
 [observability]
 enabled = true
-head_sampling_rate = 1
+head_sampling_rate = 0.1
 
 [vars]
+# 注意：SITE_PASSWORD / TURNSTILE_SECRET_KEY 必须用 wrangler secret 配置，不要写在此文件中！
+# 否则 deploy 会覆盖/清掉控制台里的变量，导致「未启用人机验证」和封面裂图。
+#   npx wrangler secret put PASSWORD -c wrangler.worker.toml
+#   npx wrangler secret put TURNSTILE_SECRET_KEY -c wrangler.worker.toml
 EXPECTED_HOSTNAME = "tv.444110.xyz"
 TURNSTILE_SITE_KEY = "0x4AAAAAAA_eDna9q6FWwy6r"
 CANONICAL_HOST = "tv.444110.xyz"
-SEARCH_RATE_LIMIT = "5"
+SEARCH_RATE_LIMIT = "12"
 SEARCH_RATE_WINDOW_SECONDS = "60"
-ACCESS_RATE_LIMIT = "5"
+ACCESS_RATE_LIMIT = "12"
 ACCESS_RATE_WINDOW_SECONDS = "60"
-BOT_DETECT_WINDOW_MS = "1800000"
-BOT_DETECT_MIN_SPAN_MINUTES = "29"
-BOT_DETECT_MIN_ACTIVE_MINUTES = "28"
+BOT_DETECT_WINDOW_MS = "600000"
+BOT_DETECT_MIN_SPAN_MINUTES = "8"
+BOT_DETECT_MIN_ACTIVE_MINUTES = "6"
 BOT_DETECT_MIN_REQUESTS_PER_MINUTE = "2"
-BOT_DETECT_MAX_COUNT_CV = "0.2"
+BOT_DETECT_MAX_COUNT_CV = "0.25"
 BOT_DETECT_MINUTE_MATCH_RATIO = "0.85"
+BOT_SEARCH_REFRESH_BAN_COUNT = "10"
+BOT_PLAYER_REFRESH_BAN_COUNT = "5"
+BOT_REGULAR_SEARCH_BAN_COUNT = "10"
+BOT_REGULAR_SEARCH_MIN_SPAN_MINUTES = "4"
+BOT_REGULAR_SEARCH_MAX_INTERVAL_CV = "0.35"
+PROXY_BURST_LIMIT = "240"
+PROXY_BURST_WINDOW_SECONDS = "60"
+IMAGE_CACHE_TTL = "604800"
+SEARCH_CACHE_TTL = "600"
+
+[[kv_namespaces]]
+binding = "LIBRETV_PROXY_KV"
+id = "71b3fc5488774a34a99affa1411fe7a9"
 
 [[routes]]
 pattern = "tv.444110.xyz/*"
@@ -29,4 +46,10 @@ zone_name = "444110.xyz"
 directory = "."
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = true
+# 仅对需要鉴权/代理的路径走 Worker，静态 JS/CSS/图片直连 Assets
+run_worker_first = [
+  "/proxy/*",
+  "/__*",
+  "/*.html",
+  "/",
+]

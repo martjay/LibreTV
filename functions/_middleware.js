@@ -20,7 +20,9 @@ import {
   handlePasswordAuthRequest,
 } from "./_passwordauth.js";
 import {
+  burstLimitResponse,
   checkAccessRateLimit,
+  checkProxyBurstRateLimit,
   rateLimitResponse,
 } from "./_ratelimit.js";
 import { onRequest as proxyOnRequest } from "./_proxy.js";
@@ -91,6 +93,10 @@ export async function onRequest(context) {
     const botResult = await trackAndCheckBot(request, env);
     if (botResult.banned) {
       return blockedResponse();
+    }
+    const burst = await checkProxyBurstRateLimit(request, env);
+    if (burst.exceeded) {
+      return burstLimitResponse();
     }
     if (isTurnstileEnabled(env)) {
       const limited = await enforceRateLimit("json");

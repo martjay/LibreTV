@@ -138,6 +138,12 @@ function closeModal() {
     document.getElementById('modal').classList.add('hidden');
     // 清除 iframe 内容
     document.getElementById('modalContent').innerHTML = '';
+    if (window.resourceModalBusy) {
+        window.resourceModalBusy = false;
+    }
+    if (window.detailsModalBusy) {
+        window.detailsModalBusy = false;
+    }
 }
 
 // 获取搜索历史的增强版本 - 支持新旧格式

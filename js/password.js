@@ -36,6 +36,12 @@ function markPasswordVerified() {
       passwordHash: currentHash,
     }),
   );
+  if (currentHash && window.ProxyAuth?.clearAuthCache) {
+    window.ProxyAuth.clearAuthCache();
+  }
+  if (currentHash) {
+    localStorage.setItem('proxyAuthHash', currentHash);
+  }
 }
 
 function isPasswordVerified() {
@@ -171,12 +177,6 @@ function hidePasswordModal() {
   }
 
   passwordModal.style.display = "none";
-
-  if (localStorage.getItem("doubanEnabled") === "true") {
-    const doubanArea = document.getElementById("doubanArea");
-    if (doubanArea) doubanArea.classList.remove("hidden");
-    if (typeof initDouban === "function") initDouban();
-  }
 }
 
 function showPasswordError(message) {

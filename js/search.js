@@ -1,4 +1,7 @@
-async function searchByAPIAndKeyWord(apiId, query) {
+async function searchByAPIAndKeyWord(apiId, query, options = {}) {
+    const maxPages = Number.isFinite(options.maxPages) && options.maxPages > 0
+        ? options.maxPages
+        : API_CONFIG.search.maxPages;
     try {
         let apiUrl, apiName, apiBaseUrl;
         
@@ -61,7 +64,7 @@ async function searchByAPIAndKeyWord(apiId, query) {
         // 获取总页数
         const pageCount = data.pagecount || 1;
         // 确定需要获取的额外页数 (最多获取maxPages页)
-        const pagesToFetch = Math.min(pageCount - 1, API_CONFIG.search.maxPages - 1);
+        const pagesToFetch = Math.min(pageCount - 1, maxPages - 1);
         
         // 如果有额外页数，获取更多页的结果
         if (pagesToFetch > 0) {

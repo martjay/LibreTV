@@ -75,7 +75,19 @@
     border-color: rgba(59, 130, 246, 0.4);
 }
 
-/* 豆瓣区域样式 */
+/* 首页搜索区：有豆瓣推荐时固定在顶部，避免 flex 居中导致换批时跳动 */
+.home-search-top {
+    padding-top: 0.5rem;
+    padding-bottom: 1.5rem;
+}
+
+#douban-results-wrap {
+    min-height: 520px;
+}
+
+#douban-loading.flex {
+    display: flex;
+}
 .douban-container {
     margin: 2rem auto;
     max-width: 1280px;

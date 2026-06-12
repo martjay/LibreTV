@@ -60,7 +60,7 @@ export async function handleBanAdminRequest(request, env) {
 
   if (request.method === "DELETE" && ipFromPath) {
     try {
-      await unbanIp(ipFromPath);
+      await unbanIp(ipFromPath, env);
       return jsonResponse({ ok: true, ip: ipFromPath });
     } catch (error) {
       if (error.message === "invalid_ip") {

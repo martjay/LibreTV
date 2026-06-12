@@ -1,5 +1,5 @@
 // 全局变量
-let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["tyyszy","dyttzy", "bfzy", "ruyi"]'); // 默认选中资源
+let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["ikun","dbzy","ruyi","zy360","iqiyi"]'); // 默认选中资源
 let customAPIs = JSON.parse(localStorage.getItem('customAPIs') || '[]'); // 存储自定义API列表
 
 // 添加当前播放的集数索引
@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // 设置默认API选择（如果是第一次加载）
     if (!localStorage.getItem('hasInitializedDefaults')) {
         // 默认选中资源
-        selectedAPIs = ["tyyszy", "bfzy", "dyttzy", "ruyi"];
+        selectedAPIs = ["ikun", "dbzy", "ruyi", "zy360", "iqiyi"];
         localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
 
         // 默认选中过滤开关
@@ -59,6 +59,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 初始检查成人API选中状态
     setTimeout(checkAdultAPIsSelected, 100);
+
+    // 默认配置写入后再初始化豆瓣（避免早于 doubanEnabled 默认值）
+    if (typeof bootstrapDouban === 'function') {
+        bootstrapDouban();
+    }
 });
 
 // 初始化API复选框
@@ -565,9 +570,13 @@ function resetSearchArea() {
     document.getElementById('searchInput').value = '';
 
     // 恢复搜索区域的样式
-    document.getElementById('searchArea').classList.add('flex-1');
-    document.getElementById('searchArea').classList.remove('mb-8');
     document.getElementById('resultsArea').classList.add('hidden');
+    if (typeof updateHomeLayout === 'function') {
+        updateHomeLayout();
+    } else {
+        document.getElementById('searchArea').classList.add('flex-1');
+        document.getElementById('searchArea').classList.remove('mb-8');
+    }
 
     // 确保页脚正确显示，移除相对定位
     const footer = document.querySelector('.footer');
@@ -673,9 +682,13 @@ async function search() {
         }
 
         // 显示结果区域，调整搜索区域
-        document.getElementById('searchArea').classList.remove('flex-1');
-        document.getElementById('searchArea').classList.add('mb-8');
         document.getElementById('resultsArea').classList.remove('hidden');
+        if (typeof updateHomeLayout === 'function') {
+            updateHomeLayout();
+        } else {
+            document.getElementById('searchArea').classList.remove('flex-1');
+            document.getElementById('searchArea').classList.add('mb-8');
+        }
 
         // 隐藏豆瓣推荐区域（如果存在）
         const doubanArea = document.getElementById('doubanArea');
@@ -854,8 +867,11 @@ function hookInput() {
 }
 document.addEventListener('DOMContentLoaded', hookInput);
 
+window.detailsModalBusy = false;
+
 // 显示详情 - 修改为支持自定义API
 async function showDetails(id, vod_name, sourceCode) {
+    if (window.detailsModalBusy) return;
     // 密码保护校验
     if (window.isPasswordProtected && window.isPasswordVerified) {
         if (window.isPasswordProtected() && !window.isPasswordVerified()) {
@@ -868,8 +884,13 @@ async function showDetails(id, vod_name, sourceCode) {
         return;
     }
 
+    window.detailsModalBusy = true;
     showLoading();
     try {
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalContent = document.getElementById('modalContent');
+
         // 构建API参数
         let apiParams = '';
 
@@ -898,11 +919,16 @@ async function showDetails(id, vod_name, sourceCode) {
         const cacheBuster = `&_t=${timestamp}`;
         const response = await fetch(`/api/detail?id=${encodeURIComponent(id)}${apiParams}${cacheBuster}`);
 
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch {
+            throw new Error('详情数据解析失败');
+        }
 
-        const modal = document.getElementById('modal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalContent = document.getElementById('modalContent');
+        if (!response.ok || (data.code && data.code >= 400)) {
+            throw new Error(data.msg || data.error || `详情请求失败 (${response.status})`);
+        }
 
         // 显示来源信息
         const sourceName = data.videoInfo && data.videoInfo.source_name ?
@@ -980,8 +1006,22 @@ async function showDetails(id, vod_name, sourceCode) {
         modal.classList.remove('hidden');
     } catch (error) {
         console.error('获取详情错误:', error);
-        showToast('获取详情失败，请稍后重试', 'error');
+        const modal = document.getElementById('modal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalContent = document.getElementById('modalContent');
+        if (modal && modalTitle && modalContent) {
+            modalTitle.innerHTML = `<span class="break-words">${vod_name || '未知视频'}</span>`;
+            modalContent.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="text-red-400 mb-2">❌ 获取详情失败</div>
+                    <div class="text-gray-500 text-sm">${error.message || '请稍后重试'}</div>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+        }
+        showToast(error.message || '获取详情失败，请稍后重试', 'error');
     } finally {
+        window.detailsModalBusy = false;
         hideLoading();
     }
 }

@@ -3,6 +3,9 @@ import { getClientIp } from "./_blocklist.js";
 const DEFAULT_LIMIT = 5;
 const DEFAULT_WINDOW_MS = 60 * 1000;
 const CACHE_ORIGIN = "https://rate-limit.internal";
+const BURST_CACHE_ORIGIN = "https://proxy-burst.internal";
+const DEFAULT_BURST_LIMIT = 240;
+const DEFAULT_BURST_WINDOW_MS = 60 * 1000;
 
 export function getAccessRateLimit(env) {
   const raw = env.ACCESS_RATE_LIMIT || env.SEARCH_RATE_LIMIT || String(DEFAULT_LIMIT);
@@ -14,6 +17,18 @@ export function getAccessRateWindowMs(env) {
   const raw = env.ACCESS_RATE_WINDOW_SECONDS || env.SEARCH_RATE_WINDOW_SECONDS || "60";
   const seconds = parseInt(raw, 10);
   return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_WINDOW_MS;
+}
+
+export function getProxyBurstLimit(env) {
+  const raw = env.PROXY_BURST_LIMIT || String(DEFAULT_BURST_LIMIT);
+  const limit = parseInt(raw, 10);
+  return Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_BURST_LIMIT;
+}
+
+export function getProxyBurstWindowMs(env) {
+  const raw = env.PROXY_BURST_WINDOW_SECONDS || "60";
+  const seconds = parseInt(raw, 10);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_BURST_WINDOW_MS;
 }
 
 function getTargetUrlFromProxyPath(pathname) {
@@ -134,6 +149,18 @@ export function classifyPageRequest(url) {
     return { key: `page:watch:${id}`.slice(0, 240) };
   }
 
+  // 搜索结果页（/s=关键词）
+  if (path.startsWith("/s=")) {
+    try {
+      const query = decodeURIComponent(path.slice(3)).trim().toLowerCase();
+      if (query) {
+        return { key: `page:search:${query}`.slice(0, 240) };
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return null;
 }
 
@@ -168,6 +195,53 @@ async function writeRecord(cache, cacheKey, record, windowMs) {
       },
     }),
   );
+}
+
+export async function checkProxyBurstRateLimit(request, env) {
+  const ip = getClientIp(request);
+  if (!ip) return { exceeded: false };
+
+  const windowMs = getProxyBurstWindowMs(env);
+  const limit = getProxyBurstLimit(env);
+  const now = Date.now();
+
+  const cache = caches.default;
+  const cacheKey = new Request(`${BURST_CACHE_ORIGIN}/${encodeURIComponent(ip)}`);
+  const cached = await cache.match(cacheKey);
+
+  let record = { count: 0, windowStart: now };
+  if (cached) {
+    try {
+      const parsed = await cached.json();
+      if (parsed && typeof parsed.count === "number" && typeof parsed.windowStart === "number") {
+        record = parsed;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (now - record.windowStart >= windowMs) {
+    record = { count: 0, windowStart: now };
+  }
+
+  record.count += 1;
+
+  await cache.put(
+    cacheKey,
+    new Response(JSON.stringify(record), {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": `max-age=${Math.ceil(windowMs / 1000)}`,
+      },
+    }),
+  );
+
+  return {
+    exceeded: record.count > limit,
+    count: record.count,
+    limit,
+  };
 }
 
 export async function checkAccessRateLimit(request, env) {
@@ -233,3 +307,21 @@ export function rateLimitResponse(clearCookieHeader) {
 }
 
 export const searchRateLimitResponse = rateLimitResponse;
+
+export function burstLimitResponse() {
+  return new Response(
+    JSON.stringify({
+      error: "请求过于频繁，请稍后再试",
+      retryAfter: 60,
+    }),
+    {
+      status: 429,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*",
+        "Retry-After": "60",
+      },
+    },
+  );
+}

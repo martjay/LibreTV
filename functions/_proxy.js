@@ -49,7 +49,10 @@ export async function onRequest(context) {
     // --- 从环境变量读取配置 ---
     const DEBUG_ENABLED = (env.DEBUG === 'true');
     const CACHE_TTL = parseInt(env.CACHE_TTL || '86400'); // 默认 24 小时
+    const IMAGE_CACHE_TTL = parseInt(env.IMAGE_CACHE_TTL || '604800'); // 默认 7 天
+    const SEARCH_CACHE_TTL = parseInt(env.SEARCH_CACHE_TTL || '600'); // 默认 10 分钟
     const MAX_RECURSION = parseInt(env.MAX_RECURSION || '5'); // 默认 5 层
+    const EDGE_CACHE_ORIGIN = 'https://edge-cache.internal';
     // 广告过滤已移至播放器处理，代理不再执行
     let USER_AGENTS = [ // 提供一个基础的默认值
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -278,6 +281,45 @@ export async function onRequest(context) {
         } catch {
             return '';
         }
+    }
+
+    function isImageUrl(targetUrl) {
+        return /\.(jpg|jpeg|png|gif|webp|ico|svg|avif|heic)(\?|$|#)/i.test(targetUrl);
+    }
+
+    function isSearchApiUrl(targetUrl) {
+        const lower = targetUrl.toLowerCase();
+        return lower.includes('ac=videolist') && (lower.includes('wd=') || lower.includes('ids='));
+    }
+
+    function isDoubanApiUrl(targetUrl) {
+        const lower = targetUrl.toLowerCase();
+        return lower.includes('douban.com') &&
+            (lower.includes('search_subjects') || lower.includes('search_tags'));
+    }
+
+    function isCacheableApiUrl(targetUrl) {
+        return isSearchApiUrl(targetUrl) || isDoubanApiUrl(targetUrl);
+    }
+
+    function edgeCacheKey(targetUrl) {
+        return new Request(`${EDGE_CACHE_ORIGIN}/${encodeURIComponent(targetUrl)}`);
+    }
+
+    async function getEdgeCached(targetUrl) {
+        return caches.default.match(edgeCacheKey(targetUrl));
+    }
+
+    async function putEdgeCached(targetUrl, body, headers, ttl) {
+        const responseHeaders = new Headers(headers);
+        responseHeaders.set('Cache-Control', `public, max-age=${ttl}`);
+        responseHeaders.set('Access-Control-Allow-Origin', '*');
+        responseHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
+        responseHeaders.set('Access-Control-Allow-Headers', '*');
+        await caches.default.put(
+            edgeCacheKey(targetUrl),
+            new Response(body, { status: 200, headers: responseHeaders }),
+        );
     }
 
     function shouldFetchAsBinary(targetUrl, contentType) {
@@ -539,6 +581,26 @@ export async function onRequest(context) {
 
         logDebug(`收到代理请求: ${targetUrl}`);
 
+        // --- Edge Cache（图片 / 搜索 JSON，减轻重复上游请求）---
+        if (isImageUrl(targetUrl) || isCacheableApiUrl(targetUrl)) {
+            try {
+                const edgeCached = await getEdgeCached(targetUrl);
+                if (edgeCached) {
+                    logDebug(`[Edge缓存命中] ${targetUrl}`);
+                    const cachedHeaders = new Headers(edgeCached.headers);
+                    cachedHeaders.set('Access-Control-Allow-Origin', '*');
+                    cachedHeaders.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
+                    cachedHeaders.set('Access-Control-Allow-Headers', '*');
+                    return new Response(edgeCached.body, {
+                        status: edgeCached.status,
+                        headers: cachedHeaders,
+                    });
+                }
+            } catch (edgeError) {
+                logDebug(`Edge 缓存读取失败 (${targetUrl}): ${edgeError.message}`);
+            }
+        }
+
         // --- 缓存检查 (KV) ---
         const cacheKey = `proxy_raw:${targetUrl}`; // 使用原始内容的缓存键
         let kvNamespace = null;
@@ -604,11 +666,19 @@ export async function onRequest(context) {
         } else {
             logDebug(`内容不是 M3U8 (类型: ${contentType})，直接返回: ${targetUrl}`);
             const finalHeaders = new Headers(responseHeaders);
-            finalHeaders.set('Cache-Control', `public, max-age=${CACHE_TTL}`);
+            const cacheTtl = isImageUrl(targetUrl) ? IMAGE_CACHE_TTL : CACHE_TTL;
+            finalHeaders.set('Cache-Control', `public, max-age=${cacheTtl}`);
             // 添加 CORS 头，确保非 M3U8 内容也能跨域访问（例如图片、字幕文件等）
             finalHeaders.set("Access-Control-Allow-Origin", "*");
             finalHeaders.set("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS");
             finalHeaders.set("Access-Control-Allow-Headers", "*");
+
+            if (isImageUrl(targetUrl) && isBinary) {
+                waitUntil(putEdgeCached(targetUrl, content, finalHeaders, IMAGE_CACHE_TTL));
+            } else if (isCacheableApiUrl(targetUrl) && !isBinary && typeof content === 'string') {
+                waitUntil(putEdgeCached(targetUrl, content, finalHeaders, SEARCH_CACHE_TTL));
+            }
+
             return createResponse(content, 200, finalHeaders);
         }
 
